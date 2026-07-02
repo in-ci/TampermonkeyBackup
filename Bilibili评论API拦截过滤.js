@@ -3,10 +3,19 @@
 // @namespace    bilibili-comment-filter
 // @version      1.0.0
 // @description  Hook API response，过滤评论后再返回浏览器渲染
-// @match        *://*.bilibili.com/video/*
-// @match        *://*.bilibili.com/opus/*
-// @match        *://t.bilibili.com/*
+// @license      MIT
+// @match        *://*.bilibili.com/*
+// @exclude      *://api.bilibili.com/*
+// @exclude      *://api.*.bilibili.com/*
+// @exclude      *://*.bilibili.com/api/*
+// @exclude      *://member.bilibili.com/studio/bs-editor/*
+// @exclude      *://t.bilibili.com/h5/dynamic/specification
+// @exclude      *://bbq.bilibili.com/*
+// @exclude      *://message.bilibili.com/pages/nav/header_sync
+// @exclude      *://s1.hdslb.com/bfs/seed/jinkela/short/cols/iframe.html
+// @exclude      *://open-live.bilibili.com/*
 // @grant        none
+// @icon         https://www.bilibili.com/favicon.ico
 // ==/UserScript==
 
 (() => {
