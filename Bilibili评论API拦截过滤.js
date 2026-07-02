@@ -14,6 +14,7 @@
 // @exclude      *://message.bilibili.com/pages/nav/header_sync
 // @exclude      *://s1.hdslb.com/bfs/seed/jinkela/short/cols/iframe.html
 // @exclude      *://open-live.bilibili.com/*
+// @exclude      *://*.bilibili.com/v/popular/*
 // @grant        none
 // @icon         https://www.bilibili.com/favicon.ico
 // ==/UserScript==
