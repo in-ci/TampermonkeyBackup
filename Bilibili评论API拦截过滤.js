@@ -78,7 +78,7 @@
 
     function isBanComment(text)
     {
-        matchKeyword(text, banRules.comment);
+        return matchKeyword(text, banRules.comment);
     }
 
     function isBanUser(member)
