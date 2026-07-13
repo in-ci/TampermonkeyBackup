@@ -27,23 +27,31 @@
 
     /******************************* 过滤内容匹配 ***************************************/
 
-    // 模糊匹配  评论字符串
-    let banCommentKeyMap = [
-        
+    // 模糊匹配支持正则，正则格式： /xxxxxx/
+    // 精确匹配不支持正则
+
+    // 屏蔽指定 关键字 的评论（模糊匹配）
+    let banCommentRegexMap = [
+        '交流群', '问了吗', '邀请码', '大佬帮我', '托管日常'
     ];
 
-    // 屏蔽 指定 用户名 的评论（精准匹配）
-    let banUserNameMap = [
+    // 屏蔽指定 用户名 的评论（模糊匹配）
+    let banUserNameRegexMap = [
+        'bili_',
+    ];
+
+    // 依据用户简介关键字屏蔽（模糊匹配）
+    let banUserSignRegexMap = [
 
     ];
 
-    // 屏蔽 指定  用户名  的评论（模糊匹配）
-    let banUserNameFuzzyMap = [
+    // 屏蔽指定 用户名 的评论（精准匹配）
+    let banUserNameExactMap = [
 
     ];
 
-    // 屏蔽 指定 uid 的评论（精准匹配）
-    let banUserUidMap = [
+    // 屏蔽指定 uid 的评论（精准匹配）
+    let banUserUidExactMap = [
 
     ];
 
@@ -52,23 +60,97 @@
 
     /*******************************下方内容不要修改***************************************/
 
-    // 工具函数
+    /*
+    *  DEBUG 打印
+    */
+    const log = (...args) => DEBUG && console.log('%c[BiliFilter]', 'color:#00a1d6;font-weight:bold', ...args);
+    const warn = (...args) => DEBUG && console.warn('%c[BiliFilter]', 'color:orange;font-weight:bold', ...args);
+
+    /**
+    * 创建关键词匹配器 , 支持:
+    * 普通关键词: "交流群"
+    * 正则: "/交流群\d+/"
+    */
     function createKeywordReg(list) {
         if (!Array.isArray(list) || list.length === 0) {
             return /$a/;
         }
 
-        return new RegExp(list.filter(Boolean).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),'i');
+        const regexList = [];
+
+        for (const item of list) {
+
+            if (!item) continue;
+
+            const rule = String(item).trim();
+
+            if (!rule) continue;
+
+            // 判断正则格式  /xxx/
+            const match = rule.match(/^\/(.+)\/$/);
+
+            if (match) {
+                try {
+                    regexList.push(new RegExp(match[1]));
+                }
+                catch (e) {
+                    warn('[BiliFilter] 无效正则:', rule);
+                }
+            }
+            else {
+                // 普通字符串
+                // 转义正则字符
+                regexList.push(new RegExp(rule.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+            }
+        }
+
+        // 过滤后没有有效规则
+        if (regexList.length === 0) {
+            return /$a/;
+        }
+
+        /*
+         * 返回一个具有 test 方法的匹配器
+         * 保持和 RegExp.test() 使用方式一致
+         */
+        return {
+            test(text) {
+                if (!text) {
+                    return false;
+                }
+
+                return regexList.some(reg => {
+                    /*
+                     * 防止未来误使用 g 标记
+                     * 导致 lastIndex 影响结果
+                     */
+                    reg.lastIndex = 0;
+                    return reg.test(text);
+                });
+            }
+        };
     }
 
+    // 创建匹配规则映射
     const banRules = {
-        comment: createKeywordReg(banCommentKeyMap),
-        usernameFuzzy: createKeywordReg(banUserNameFuzzyMap),
-        username: new Set(banUserNameMap),
-        uid:new Set(banUserUidMap)
+        comments: {
+            comment: createKeywordReg(banCommentRegexMap),
+        },
+
+        user: {
+            // 用户名 模糊匹配
+            nameRegex: createKeywordReg(banUserNameRegexMap),
+            // 用户名 精确匹配
+            nameExact: new Set(banUserNameExactMap),
+            // uid 精确匹配
+            uidExact: new Set(banUserUidExactMap),
+            // 用户简介 模糊匹配
+            signRegex: createKeywordReg(banUserSignRegexMap)
+        },
     };
 
-    function matchKeyword(text, reg) {
+    // 匹配规则辅助函数
+    function matchRegex(text, reg) {
         return !!text && reg.test(text);
     }
 
@@ -76,13 +158,29 @@
         return !!value && set.has(String(value));
     }
 
-    function isBanComment(text)
-    {
-        return matchKeyword(text, banRules.comment);
+    // 具体内容匹配函数
+    function isBanComment(text) {
+        return matchRegex(text, banRules.comments.comment);
     }
 
-    function isBanUser(member)
-    {
+    function isBanNameRegex(name) {
+        return matchRegex(name, banRules.user.nameRegex);
+    }
+
+    function isBanNameExact(name) {
+        return matchExact(name, banRules.user.nameExact);
+    }
+
+    function isBanUidExact(uid) {
+        return matchExact(uid, banRules.user.uidExact);
+    }
+
+    function isBanSignRegex(sign) {
+        return matchRegex(sign, banRules.user.signRegex);
+    }
+
+    // 判断用户是否需要屏蔽
+    function isBanUser(member) {
         if (!member) return false;
 
         // 屏蔽低于 banBelowLevel等级 的用户
@@ -93,32 +191,20 @@
         const name = member.uname || '';
 
         // 模糊匹配用户名
-        if (matchKeyword(name,banRules.usernameFuzzy)) return true;
+        if (isBanNameRegex(name)) return true;
 
         // 精确匹配用户名
-        if (matchExact(name,banRules.username)) return true;
+        if (isBanNameExact(name)) return true;
 
         // 精确匹配UID
         const uid = member.mid || '';
-        if (matchExact(uid,banRules.uid)) return true;
+        if (isBanUidExact(uid)) return true;
+
+        const sign = member.sign || '';
+        if (isBanSignRegex(sign)) return true;
 
         return false;
     }
-
-    /*************************************************
-     *  DEBUG 打印
-     *************************************************/
-    const log = (...args) => DEBUG && console.log(
-        '%c[BiliFilter]',
-        'color:#00a1d6;font-weight:bold',
-        ...args
-    );
-
-    const warn = (...args) => DEBUG && console.warn(
-        '%c[BiliFilter]',
-        'color:orange;font-weight:bold',
-        ...args
-    );
 
     /*************************************************
      *  评论数据过滤核心逻辑
